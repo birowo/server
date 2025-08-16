@@ -1,0 +1,36 @@
+<!DOCTYPE html><html><head></head><body>
+  <div id="daftar"></div>
+  <table><tr>
+    <td><input id="pesan"></td>
+    <td><button id="kirim">KIRIM</button></td>
+  </tr></table>
+  <script>
+  const chatUrl = "ws://localhost:8080/chat"
+  var socket = new WebSocket(chatUrl), isOpen = false;
+  socket.onopen = () => {
+    isOpen = true
+    console.log("connection open")
+    pesan.focus()
+  }
+  socket.onmessage = (evt) => {
+    const item =  document.createElement("DIV")
+    item.textContent = evt.data
+    daftar.appendChild(item)
+    pesan.value = ""
+    pesan.focus()
+  }
+  socket.onclose = () => {
+    console.log("connection close")
+    isOpen = false
+    //socket = new WebSocket(chatUrl)
+  };
+  socket.onerror = (err) => {
+    console.log("error:", err)
+    isOpen = false
+    //socket = new WebSocket(chatUrl)
+  }
+  kirim.onclick = () => {
+    isOpen && pesan.value && socket.send(pesan.value)
+  }
+  </script>
+  </body></html>
