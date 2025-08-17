@@ -5,6 +5,7 @@ import (
 	"net"
 	"net/http"
 	"os"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -152,7 +153,7 @@ func HexInt(q int64) []byte {
 }
 
 var Mime = map[string][]byte{
-	"htm": []byte("  text/html; charset=utf-8"),
+	".htm": []byte("text/html; charset=utf-8"),
 }
 
 type F struct {
@@ -163,7 +164,8 @@ type F struct {
 }
 
 func FilePool(name string) *sync.Pool {
-	ct := Mime[name[len(name)-3:]]
+	ct := Mime[name[strings.LastIndexByte(name, '.'):]]
+	//println("content-type:", string(ct))
 	return &sync.Pool{
 		New: func() any {
 			f, err := os.Open(name)
@@ -174,25 +176,25 @@ func FilePool(name string) *sync.Pool {
 			if err != nil {
 				return F{nil, nil, nil, err}
 			}
-			Hdrs := []byte("Last-Modified: Mon, 02 Jan 2006 15:04:05 GMT\r\nContent-Length: 0000000000\r\nContent-Type:                             \r\n")
-			//const x = len("Last-Modified: Mon, 02 Jan 2006 15:04:05 GMT\r\nContent-Length: 0000000000\r\nContent-Type:                             \r\n") //88
-			copy(Hdrs[15:], i.ModTime().Format(http.TimeFormat))
-			copy(Hdrs[88:], ct)
-			BytesInt(Hdrs[:72], i.Size())
-			return F{f, Hdrs, Hdrs[15:44], nil}
+			//const x = len(" 200 OK\r\nLast-Modified: Mon, 02 Jan 2006 15:04:05 GMT\r\nContent-Length: 0000000000\r\nContent-Type: ")
+			Hdrs := []byte(" 200 OK\r\nLast-Modified: Mon, 02 Jan 2006 15:04:05 GMT\r\nContent-Length: 0000000000\r\nContent-Type:                             \r\n")
+			copy(Hdrs[24:], i.ModTime().Format(http.TimeFormat))
+			copy(Hdrs[97:], ct)
+			BytesInt(Hdrs[:81], i.Size())
+			return F{f, Hdrs, Hdrs[24:53], nil}
 		},
 	}
 }
 func SendFile(conn net.Conn, filePool *sync.Pool, ifModifiedSince []byte) {
-	file := filePool.Get().(F)
+	file_ := filePool.Get()
+	file := file_.(F)
 	if bytes.Equal(ifModifiedSince, file.Mod) {
 		conn.Write(NotModified)
 		return
 	}
-	conn.Write(OK)
 	conn.Write(file.Hdrs)
 	conn.Write(*Date.Load())
 	file.Seek(0, 0)
 	file.WriteTo(conn)
-	filePool.Put(file)
+	filePool.Put(file_)
 }

@@ -41,11 +41,6 @@ func Upgrade(conn net.Conn, secWebsocketKey []byte) {
 	}
 	upgrade.Put(buf_)
 }
-func unmask(payload []byte, len_ int64, maskKey []byte) {
-	for i := range len_ {
-		payload[i] ^= maskKey[i&3]
-	}
-}
 
 const (
 	OpCont  = 0x00
@@ -56,6 +51,11 @@ const (
 	OpPong  = 0x0a
 )
 
+func unmask(payload []byte, len_ int64, maskKey []byte) {
+	for i := range len_ {
+		payload[i] ^= maskKey[i&3]
+	}
+}
 func ParseFrame(bfr []byte, n int64) (fin, opCode byte, reply []byte, hdrLen, l int64) {
 	// payload form client to server should be masked
 	if n < 6 || (bfr[1]&0x80) != 0x80 {
@@ -86,6 +86,7 @@ func ParseFrame(bfr []byte, n int64) (fin, opCode byte, reply []byte, hdrLen, l 
 	reply = bfr[:hdrLen+len_]
 	fin = bfr[0] & 0x80
 	opCode = bfr[0] & 0x0f
+	//header := replay[:hdrLen]
 	//payload := reply[hdrLen:]
 	return
 }
