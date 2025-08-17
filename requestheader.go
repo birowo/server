@@ -2,6 +2,7 @@ package server
 
 import (
 	"bytes"
+	"log"
 	"net"
 	"net/http"
 	"os"
@@ -195,6 +196,9 @@ func SendFile(conn net.Conn, filePool *sync.Pool, ifModifiedSince []byte) {
 	conn.Write(file.Hdrs)
 	conn.Write(*Date.Load())
 	file.Seek(0, 0)
-	file.WriteTo(conn)
+	_, err := file.WriteTo(conn)
+	if err != nil {
+		log.Println("send file:", err)
+	}
 	filePool.Put(file_)
 }
