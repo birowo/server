@@ -28,8 +28,8 @@ func accept(listener net.Listener, bufPool *sync.Pool, cb func(net.Conn, []byte)
 	}()
 	cb(conn, buf.([]byte))
 }
-func Listener(addr string, bufLen int, cb func(net.Conn, []byte)) {
-	listener, err := net.Listen("tcp", addr)
+func Listen(network, addr string, bufLen int, cb func(net.Conn, []byte)) {
+	listener, err := net.Listen(network, addr)
 	if err != nil {
 		log.Fatalln(err)
 	}

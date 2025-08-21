@@ -57,10 +57,11 @@ func chatHandler(conn net.Conn, bfr []byte, hdrs ...[]byte) {
 }
 func main() {
 	rootHtmPool := server.FilePool("root.htm")
+	network := "tcp"
 	port := ":8080"
 	bufferSize := 4096
-	server.Listener(
-		port, bufferSize,
+	server.Listen(
+		network, port, bufferSize,
 		func(conn net.Conn, bfr []byte) {
 			n, err := conn.Read(bfr)
 			if err != nil {

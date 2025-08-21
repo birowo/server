@@ -114,13 +114,13 @@ var (
 var Date atomic.Pointer[[]byte]
 
 func init() {
-	const (
-		dt  = "Date: "
-		dtL = len(dt)
-		hTF = http.TimeFormat
-	)
-	date := []byte(dt + hTF + "\r\n\r\n")
 	go func() {
+		const (
+			dt  = "Date: "
+			dtL = len(dt)
+			hTF = http.TimeFormat
+		)
+		date := []byte(dt + hTF + "\r\n\r\n")
 		for {
 			copy(date[dtL:], time.Now().Format(hTF))
 			Date.Store(&date)
