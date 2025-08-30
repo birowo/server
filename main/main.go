@@ -71,7 +71,7 @@ func main() {
 			bfr := bss(bsLen)
 			n, err := conn.Read(bfr)
 			if err != nil {
-				println(err.Error())
+				log.Println(err.Error())
 				return
 			}
 			mthdEnd := server.Method(bfr, n)
@@ -81,8 +81,7 @@ func main() {
 			verEnd := server.Ver(bfr, verBgn, n)
 			ifModifiedSince := server.H{"if-modified-since", nil}
 			secWebSocketKey := server.H{"sec-websocket-key", nil}
-			i := server.Headers(bfr, verEnd+2, n, &ifModifiedSince, &secWebSocketKey)
-			if i > n {
+			if server.Headers(bfr, verEnd+2, n, &ifModifiedSince, &secWebSocketKey) > n {
 				return
 			}
 			println(
