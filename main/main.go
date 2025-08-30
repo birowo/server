@@ -9,10 +9,12 @@ import (
 	"github.com/birowo/server"
 )
 
+const connsLen = 9999
+
 var conns = struct {
 	conns map[net.Conn]struct{}
 	sync.RWMutex
-}{make(map[net.Conn]struct{}, 9999), sync.RWMutex{}}
+}{make(map[net.Conn]struct{}, connsLen), sync.RWMutex{}}
 
 func chatHandler(conn net.Conn, bfr []byte, hdrs ...[]byte) {
 	server.Upgrade(conn, hdrs[0])
@@ -55,14 +57,18 @@ func chatHandler(conn net.Conn, bfr []byte, hdrs ...[]byte) {
 		n = int64(copy(bfr, bfr[l:n])) //next frame alignment
 	}
 }
+
 func main() {
 	rootHtmPool := server.FilePool("root.htm")
 	network := "tcp"
 	port := ":8080"
-	bufferSize := 4096
+	bssLen := uint32(15)
+	bss := server.CfgBfr(bssLen)
 	server.Listen(
-		network, port, bufferSize,
-		func(conn net.Conn, bfr []byte) {
+		network, port,
+		func(conn net.Conn) {
+			const bsLen uint32 = 1024
+			bfr := bss(bsLen)
 			n, err := conn.Read(bfr)
 			if err != nil {
 				println(err.Error())

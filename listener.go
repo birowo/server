@@ -5,41 +5,53 @@ import (
 	"log"
 	"net"
 	"os/signal"
-	"sync"
+	"sync/atomic"
 	"syscall"
 )
 
-func accept(listener net.Listener, bufPool *sync.Pool, cb func(net.Conn, []byte)) {
+type Bss func(uint32) []byte
+
+func CfgBfr(n uint32) Bss {
+	if n > 31 {
+		return nil
+	}
+	n = 1 << n
+	bs_ := make([]byte, n)
+	n--
+	var i atomic.Uint32
+	return func(l uint32) []byte {
+		bgn, end := uint32(0), uint32(0)
+		for (end & n) <= (bgn & n) {
+			end = i.Add(l)
+			bgn = end - l
+		}
+		return bs_[bgn:end]
+	}
+}
+func accept(listener net.Listener, cb func(net.Conn)) {
 	conn, err := listener.Accept()
-	go accept(listener, bufPool, cb)
+	go accept(listener, cb)
 	if err != nil {
 		log.Println(err.Error())
 		return
 	}
-	buf := bufPool.Get()
-	println("new connection")
 	defer func() {
-		bufPool.Put(buf)
 		conn.Close()
 		println("close connection")
 		if err := recover(); err != nil {
 			log.Println(err)
 		}
 	}()
-	cb(conn, buf.([]byte))
+	println("new connection")
+	cb(conn)
 }
-func Listen(network, addr string, bufLen int, cb func(net.Conn, []byte)) {
+func Listen(network, addr string, cb func(net.Conn)) {
 	listener, err := net.Listen(network, addr)
 	if err != nil {
 		log.Fatalln(err)
 	}
 	defer listener.Close()
-	bufPool := &sync.Pool{
-		New: func() any {
-			return make([]byte, bufLen)
-		},
-	}
-	go accept(listener, bufPool, cb)
+	go accept(listener, cb)
 	println("running")
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	<-ctx.Done()
