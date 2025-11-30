@@ -11,21 +11,18 @@ import (
 
 type Bss func(uint32) []byte
 
-func CfgBfr(n uint32) Bss {
-	if n > 31 {
-		return nil
-	}
-	n = 1 << n
-	bs_ := make([]byte, n)
-	n--
+func CfgBfr() Bss {
+	var bs [65536]byte
 	var i atomic.Uint32
 	return func(l uint32) []byte {
 		bgn, end := uint32(0), uint32(0)
-		for (end & n) <= (bgn & n) {
-			end = i.Add(l)
-			bgn = end - l
+	l1:
+		end = i.Add(l)
+		bgn = end - l
+		if end < bgn {
+			goto l1
 		}
-		return bs_[bgn:end]
+		return bs[bgn:end]
 	}
 }
 func accept(listener net.Listener, cb func(net.Conn)) {

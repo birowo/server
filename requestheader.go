@@ -7,9 +7,10 @@ import (
 	"net/http"
 	"os"
 	"strings"
-	"sync"
 	"sync/atomic"
 	"time"
+
+	"github.com/birowo/pool"
 )
 
 func BytesInt(bs []byte, q int64) {
@@ -36,22 +37,24 @@ func Method(buf []byte, n int) (mthdEnd int) {
 	}
 	return
 }
-func PathQuery(buf []byte, pathBgn, n int) (pathEnd, qryBgn, qryEnd int) {
-	qryEnd = pathBgn
-	for qryEnd < n && buf[qryEnd] != ' ' {
-		if buf[qryEnd] == '?' {
-			pathEnd = qryEnd
-			qryEnd++
-			qryBgn = qryEnd
-		} else {
-			qryEnd++
-		}
+
+func Path(buf []byte, pathBgn, n int) (pathEnd int, isQuery bool) {
+	pathEnd = pathBgn
+	for pathEnd < n && buf[pathEnd] != ' ' && buf[pathEnd] != '?' {
+		pathEnd++
 	}
-	if qryBgn == 0 {
-		pathEnd = qryEnd
+	isQuery = pathEnd < n && buf[pathEnd] == '?'
+	return
+}
+
+func Query(buf []byte, queryBgn, n int) (queryEnd int) {
+	queryEnd = queryBgn
+	for queryEnd < n && buf[queryEnd] != ' ' {
+		queryEnd++
 	}
 	return
 }
+
 func Ver(buf []byte, verBgn, n int) (verEnd int) {
 	verEnd = verBgn
 	for verEnd < n && buf[verEnd] != '\r' {
@@ -60,48 +63,51 @@ func Ver(buf []byte, verBgn, n int) (verEnd int) {
 	return
 }
 
+type V struct {
+	Bgn, End int
+}
 type H struct {
 	K string
-	V []byte
+	V
 }
 
-func kvs(key, val []byte, hsLen int, hs []*H) int {
-	l := 0
-	for l < hsLen && string(key) != string(hs[l].K) {
-		l++
-	}
-	if l < hsLen {
-		hs[l].V = val
-		hsLen--
-		hs[l], hs[hsLen] = hs[hsLen], hs[l]
-	}
-	return hsLen
-}
-func loCase(buf []byte, i int) {
-	if buf[i] > ('A'-1) && buf[i] < ('Z'+1) {
-		buf[i] |= 0b100000
-	}
-}
-func key(buf []byte, i, n int) int {
-	for i < n && buf[i] != ':' {
-		loCase(buf, i)
-		i++
-	}
-	return i
-}
-func val(buf []byte, i, n int) int {
-	for i < n && buf[i] != '\r' {
-		i++
-	}
-	return i
-}
 func Headers(buf []byte, i, n int, hs ...*H) int {
 	hsLen := len(hs)
 	for i < n && buf[i] != '\r' {
-		j := i
-		k := key(buf, j, n) + 2
-		i = val(buf, k, n) + 2
-		hsLen = kvs(buf[j:k-2], buf[k:i-2], hsLen, hs)
+		kBgn := i
+		for i < n && buf[i] != ':' {
+			if buf[i] > ('A'-1) && buf[i] < ('Z'+1) {
+				buf[i] |= 0b100000
+			}
+			i++
+		}
+		kEnd := i
+		i += 2
+		j := 0
+		for j < hsLen && hs[j].K != string(buf[kBgn:kEnd]) {
+			j++
+		}
+		if j < hsLen {
+			hs[j].Bgn = i
+			for i < n && buf[i] != '\r' {
+				i++
+			}
+			hs[j].End = i
+			i += 2
+			hsLen--
+			println(
+				"K:", hs[j].K,
+				"V:", string(
+					buf[hs[j].Bgn:hs[j].End],
+				),
+			)
+			hs[j], hs[hsLen] = hs[hsLen], hs[j]
+		} else {
+			for i < n && buf[i] != '\r' {
+				i++
+			}
+			i += 2
+		}
 	}
 	return i
 }
@@ -164,11 +170,12 @@ type F struct {
 	Err  error
 }
 
-func FilePool(name string) *sync.Pool {
+func FilePool(name string) *pool.Pool[F] {
 	ct := Mime[name[strings.LastIndexByte(name, '.'):]]
 	//println("content-type:", string(ct))
-	return &sync.Pool{
-		New: func() any {
+	return pool.New[F](
+		1024,
+		func() F {
 			f, err := os.Open(name)
 			if err != nil {
 				return F{nil, nil, nil, err}
@@ -184,11 +191,10 @@ func FilePool(name string) *sync.Pool {
 			BytesInt(Hdrs[:81], i.Size())
 			return F{f, Hdrs, Hdrs[24:53], nil}
 		},
-	}
+	)
 }
-func SendFile(conn net.Conn, filePool *sync.Pool, ifModifiedSince []byte) {
-	file_ := filePool.Get()
-	file := file_.(F)
+func SendFile(conn net.Conn, filePool *pool.Pool[F], ifModifiedSince []byte) {
+	file := filePool.Get()
 	if bytes.Equal(ifModifiedSince, file.Mod) {
 		conn.Write(NotModified)
 		return
@@ -200,5 +206,5 @@ func SendFile(conn net.Conn, filePool *sync.Pool, ifModifiedSince []byte) {
 	if err != nil {
 		log.Println("send file:", err)
 	}
-	filePool.Put(file_)
+	filePool.Put(file)
 }

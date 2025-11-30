@@ -62,8 +62,7 @@ func main() {
 	rootHtmPool := server.FilePool("root.htm")
 	network := "tcp"
 	port := ":8080"
-	bssLen := uint32(15)
-	bss := server.CfgBfr(bssLen)
+	bss := server.CfgBfr()
 	server.Listen(
 		network, port,
 		func(conn net.Conn) {
@@ -74,13 +73,24 @@ func main() {
 				log.Println(err.Error())
 				return
 			}
+			println(string(bfr[:n]))
 			mthdEnd := server.Method(bfr, n)
+			println(string(bfr[:mthdEnd]))
 			pathBgn := mthdEnd + 1
-			pathEnd, qryBgn, qryEnd := server.PathQuery(bfr, pathBgn, n)
-			verBgn := qryEnd + 1
+			pathEnd, isQuery := server.Path(bfr, pathBgn, n)
+			println(string(bfr[:pathEnd]))
+			var qryBgn, qryEnd, verBgn int
+			if isQuery {
+				qryBgn = pathEnd + 1
+				qryEnd = server.Query(bfr, qryBgn, n)
+				verBgn = qryEnd + 1
+			} else {
+				verBgn = pathEnd + 1
+			}
 			verEnd := server.Ver(bfr, verBgn, n)
-			ifModifiedSince := server.H{"if-modified-since", nil}
-			secWebSocketKey := server.H{"sec-websocket-key", nil}
+			println(string(bfr[verBgn:verEnd]))
+			ifModifiedSince := server.H{K: "if-modified-since"}
+			secWebSocketKey := server.H{K: "sec-websocket-key"}
 			if server.Headers(bfr, verEnd+2, n, &ifModifiedSince, &secWebSocketKey) > n {
 				return
 			}
@@ -92,11 +102,13 @@ func main() {
 			)
 			conn.Write(bfr[verBgn:verEnd])
 			if bytes.Equal(bfr[:pathEnd], []byte("GET /")) {
-				server.SendFile(conn, rootHtmPool, ifModifiedSince.V)
+				imsV := ifModifiedSince.V
+				server.SendFile(conn, rootHtmPool, bfr[imsV.Bgn:imsV.End])
 				return
 			}
 			if bytes.Equal(bfr[:pathEnd], []byte("GET /chat")) {
-				chatHandler(conn, bfr, secWebSocketKey.V)
+				swkV := secWebSocketKey.V
+				chatHandler(conn, bfr, bfr[swkV.Bgn:swkV.End])
 				return
 			}
 		})
