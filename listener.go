@@ -12,13 +12,14 @@ import (
 type Bss func(uint32) []byte
 
 func CfgBfr() Bss {
-	var bs [65536]byte
-	var i atomic.Uint32
+	var (
+		bs [65536]byte
+		i  atomic.Uint32
+	)
 	return func(l uint32) []byte {
-		bgn, end := uint32(0), uint32(0)
 	l1:
-		end = i.Add(l)
-		bgn = end - l
+		end := i.Add(l) & 65535
+		bgn := end - l
 		if end < bgn {
 			goto l1
 		}

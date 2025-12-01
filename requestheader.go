@@ -81,32 +81,33 @@ func Headers(buf []byte, i, n int, hs ...*H) int {
 			}
 			i++
 		}
-		kEnd := i
-		i += 2
-		j := 0
-		for j < hsLen && hs[j].K != string(buf[kBgn:kEnd]) {
-			j++
-		}
-		if j < hsLen {
-			hs[j].Bgn = i
-			for i < n && buf[i] != '\r' {
-				i++
-			}
-			hs[j].End = i
-			i += 2
-			hsLen--
-			println(
-				"K:", hs[j].K,
-				"V:", string(
-					buf[hs[j].Bgn:hs[j].End],
-				),
-			)
-			hs[j], hs[hsLen] = hs[hsLen], hs[j]
-		} else {
-			for i < n && buf[i] != '\r' {
-				i++
+		if i < n {
+			j := 0
+			for j < hsLen && hs[j].K != string(buf[kBgn:i]) {
+				j++
 			}
 			i += 2
+			if j != hsLen {
+				hs[j].Bgn = i
+				for i < n && buf[i] != '\r' {
+					i++
+				}
+				hs[j].End = i
+				i += 2
+				hsLen--
+				println(
+					"K:", hs[j].K,
+					"V:", string(
+						buf[hs[j].Bgn:hs[j].End],
+					),
+				)
+				hs[j], hs[hsLen] = hs[hsLen], hs[j]
+			} else {
+				for i < n && buf[i] != '\r' {
+					i++
+				}
+				i += 2
+			}
 		}
 	}
 	return i
